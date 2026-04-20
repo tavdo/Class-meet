@@ -4,3 +4,7 @@ dist/
 **/.env
 *.log
 .DS_Store
+backend/uploads/attachments/*
+backend/uploads/avatars/*
+!backend/uploads/attachments/.gitkeep
+!backend/uploads/avatars/.gitkeep

@@ -1,4 +1,5 @@
 const http = require('http');
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -9,6 +10,7 @@ const { connectDb } = require('./db');
 const { errorHandler } = require('./middlewares/errorHandler');
 const authRoutes = require('./routes/authRoutes');
 const meetingRoutes = require('./routes/meetingRoutes');
+const { UPLOADS_ROOT } = require('./middlewares/upload');
 const { initSocket } = require('./sockets');
 
 async function main() {
@@ -16,7 +18,12 @@ async function main() {
 
   const app = express();
   app.disable('x-powered-by');
-  app.use(helmet());
+  app.use(
+    helmet({
+      // Allow the frontend (different origin) to embed uploaded assets.
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
   app.use(
     cors({
       origin: config.clientOrigin,
@@ -28,6 +35,17 @@ async function main() {
   app.get('/health', (req, res) => {
     res.json({ ok: true });
   });
+
+  // Public static files (uploaded attachments / avatars). URLs are unguessable
+  // (nanoid) — protect sensitive content with signed URLs if you need privacy.
+  app.use(
+    '/uploads',
+    express.static(UPLOADS_ROOT, {
+      fallthrough: false,
+      index: false,
+      maxAge: '7d',
+    })
+  );
 
   app.use('/api/auth', authRoutes);
   app.use('/api/meetings', meetingRoutes);

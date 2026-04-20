@@ -196,7 +196,9 @@ function initSocket(io) {
       const raw =
         typeof payload?.text === 'string' ? payload.text : '';
       const body = sanitizeChatText(raw);
-      if (!body) {
+      const attachment = normalizeAttachment(payload?.attachment);
+
+      if (!body && !attachment) {
         respond({ ok: false, error: 'EMPTY_MESSAGE' });
         return;
       }
@@ -208,6 +210,7 @@ function initSocket(io) {
           senderName: socket.user.displayName,
           senderRole: socket.user.role,
           body,
+          attachment,
         });
 
         const message = {
@@ -217,6 +220,7 @@ function initSocket(io) {
           senderId: socket.user.userId,
           senderName: socket.user.displayName,
           senderRole: socket.user.role,
+          attachment: doc.attachment || null,
           createdAt: doc.createdAt,
         };
 
@@ -239,6 +243,26 @@ function initSocket(io) {
 
 function roomChannel(roomId) {
   return `room:${roomId}`;
+}
+
+/**
+ * Accept only safe, server-shaped attachment metadata. Clients must first
+ * upload via `/api/meetings/:roomId/attachments` which returns this shape.
+ */
+function normalizeAttachment(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const url = typeof raw.url === 'string' ? raw.url : '';
+  const name = typeof raw.name === 'string' ? raw.name : '';
+  const mime = typeof raw.mime === 'string' ? raw.mime : '';
+  const size = Number(raw.size);
+  if (!url.startsWith('/uploads/attachments/')) return null;
+  if (!name || !mime || !Number.isFinite(size) || size <= 0) return null;
+  return {
+    url,
+    name: name.slice(0, 255),
+    mime: mime.slice(0, 120),
+    size,
+  };
 }
 
 function participantPublic(p) {

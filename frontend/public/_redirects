@@ -1,0 +1,3 @@
+# Fallback SPA redirect — in case netlify.toml isn't read (e.g. when deploying
+# the prebuilt `dist` folder directly). Kept identical to the netlify.toml rule.
+/*    /index.html   200

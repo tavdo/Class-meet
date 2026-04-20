@@ -1,0 +1,36 @@
+# Netlify configuration for the ClassMeet frontend (Vite + React).
+#
+# When the site is deployed from the repo root (the default when you link the
+# GitHub repo in Netlify), `base` tells Netlify to run the build from the
+# frontend folder so `npm install` picks up frontend/package.json.
+
+[build]
+  base        = "frontend"
+  command     = "npm run build"
+  publish     = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Fail the build if there are real install issues but don't let optional
+  # peer-dep warnings take the build down.
+  NPM_FLAGS    = "--no-audit --no-fund"
+
+# SPA fallback — react-router handles /login, /room/:id, /reset-password/:token, etc.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Small security wins at the edge.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "camera=(self), microphone=(self), display-capture=(self)"
+
+# Long-lived cache for the hashed asset bundles Vite emits.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

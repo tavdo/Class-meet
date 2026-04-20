@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { body, param, query } = require('express-validator');
 const { customAlphabet } = require('nanoid');
 const Meeting = require('../models/Meeting');
@@ -85,9 +86,36 @@ async function listMessages(req, res, next) {
       senderName: m.senderName,
       senderRole: m.senderRole,
       senderId: m.senderId,
+      attachment: m.attachment || null,
       createdAt: m.createdAt,
     }));
     return res.json({ messages: ordered });
+  } catch (e) {
+    return next(e);
+  }
+}
+
+const uploadValidators = [param('roomId').trim().isLength({ min: 8, max: 32 })];
+
+async function uploadAttachment(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const { roomId } = req.params;
+    const meeting = await Meeting.findOne({ roomId }).select('_id');
+    if (!meeting) {
+      fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+    return res.status(201).json({
+      attachment: {
+        url: `/uploads/attachments/${req.file.filename}`,
+        name: req.file.originalname,
+        size: req.file.size,
+        mime: req.file.mimetype,
+      },
+    });
   } catch (e) {
     return next(e);
   }
@@ -100,4 +128,6 @@ module.exports = {
   getMeeting,
   messagesValidators,
   listMessages,
+  uploadValidators,
+  uploadAttachment,
 };

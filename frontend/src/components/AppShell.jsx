@@ -3,11 +3,14 @@ import { motion } from 'framer-motion'
 import { useAuthStore } from '../store/authStore'
 import { AnimatedBackground } from './ui/AnimatedBackground'
 import { fadeInUp, transitions } from '../animations/variants'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, UserCircle2 } from 'lucide-react'
+import { assetUrl } from '../services/api'
 
 export function AppShell({ children }) {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
+
+  const avatarSrc = user?.avatarUrl ? assetUrl(user.avatarUrl) : ''
 
   return (
     <div className="relative flex min-h-full flex-col">
@@ -29,15 +32,26 @@ export function AppShell({ children }) {
             <span>ClassMeet</span>
           </Link>
           
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-3 text-sm">
             {user ? (
-              <div className="hidden items-center gap-2 text-slate-300 sm:flex">
-                <User size={14} className="text-accent-400" />
-                <span className="font-medium">{user.displayName}</span>
-                <span className="rounded-md bg-surface-700/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-400/20">
+              <Link
+                to="/profile"
+                className="flex items-center gap-2 rounded-xl border border-white/5 bg-white/5 px-3 py-1.5 text-slate-200 transition-all hover:bg-white/10 hover:border-white/10"
+              >
+                {avatarSrc ? (
+                  <img
+                    src={avatarSrc}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <UserCircle2 size={22} className="text-accent-400" />
+                )}
+                <span className="hidden font-medium sm:inline">{user.displayName}</span>
+                <span className="hidden rounded-md bg-surface-700/50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 border border-emerald-400/20 sm:inline">
                   {user.role}
                 </span>
-              </div>
+              </Link>
             ) : null}
             
             <button

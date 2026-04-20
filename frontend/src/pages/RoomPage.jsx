@@ -8,6 +8,7 @@ import { MeetControls } from '../components/MeetControls'
 import { ParticipantList } from '../components/ParticipantList'
 import { VideoStage } from '../components/VideoStage'
 import { useMeetingWebRtc } from '../hooks/useMeetingWebRtc'
+import { useScreenRecorder } from '../hooks/useScreenRecorder'
 import { API_URL, apiFetch } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { fadeInUp, transitions, staggerContainer } from '../animations/variants'
@@ -136,9 +137,17 @@ export default function RoomPage() {
     toggleScreenShare,
   } = useMeetingWebRtc(socket, socketReady, roomId, participants)
 
-  function sendChat(text) {
+  const {
+    isRecording,
+    isStarting: isRecordingStarting,
+    elapsedMs: recordingElapsedMs,
+    error: recordingError,
+    toggle: toggleRecording,
+  } = useScreenRecorder()
+
+  function sendChat(text, attachment) {
     if (!socket || !socketReady) return
-    socket.emit('chat_message', { text }, (res) => {
+    socket.emit('chat_message', { text, attachment }, (res) => {
       if (!res?.ok && res?.error === 'NOT_IN_ROOM') {
         setBanner('Lost room sync — refresh the page.')
       }
@@ -228,6 +237,19 @@ export default function RoomPage() {
               </div>
             </motion.div>
           )}
+
+          {recordingError && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="mt-4 overflow-hidden"
+            >
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200">
+                Recording: {recordingError}
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         <motion.div 
@@ -255,6 +277,10 @@ export default function RoomPage() {
               onToggleScreen={toggleScreenShare}
               socketReady={socketReady}
               hasLocalMedia={Boolean(localStream)}
+              isRecording={isRecording}
+              isRecordingStarting={isRecordingStarting}
+              recordingElapsedMs={recordingElapsedMs}
+              onToggleRecording={toggleRecording}
             />
           </motion.section>
 
@@ -268,6 +294,8 @@ export default function RoomPage() {
               onSend={sendChat}
               disabled={!socketReady}
               status={chatStatus}
+              roomId={roomId}
+              token={token}
             />
             <ParticipantList 
               className="max-h-[300px] lg:max-h-[35%]" 

@@ -17,6 +17,10 @@ const userSchema = new mongoose.Schema(
       enum: ['teacher', 'student'],
       required: true,
     },
+    avatarUrl: { type: String, default: '', maxlength: 512 },
+    bio: { type: String, default: '', trim: true, maxlength: 280 },
+    passwordResetTokenHash: { type: String, default: null, select: false },
+    passwordResetExpires: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 );

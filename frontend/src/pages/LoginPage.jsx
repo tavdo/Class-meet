@@ -65,14 +65,24 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <MotionInput
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="ml-1 text-xs font-medium text-slate-400">Password</span>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-semibold text-accent-400 hover:text-accent-300"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <MotionInput
+                type="password"
+                placeholder="••••••••"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
           </div>
 
           <MotionButton
