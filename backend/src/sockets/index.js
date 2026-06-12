@@ -1,5 +1,5 @@
-const Meeting = require('../models/Meeting');
-const Message = require('../models/Message');
+const { Prisma } = require('@prisma/client');
+const { prisma } = require('../db');
 const { verifyToken } = require('../utils/token');
 const { sanitizeChatText } = require('../utils/sanitizeChat');
 const config = require('../config');
@@ -47,7 +47,7 @@ function initSocket(io) {
           respond({ ok: false, error: 'ROOM_ID_REQUIRED' });
           return;
         }
-        const meeting = await Meeting.findOne({ roomId }).select('_id roomId');
+        const meeting = await prisma.meeting.findUnique({ where: { roomId }, select: { id: true, roomId: true } });
         if (!meeting) {
           respond({ ok: false, error: 'MEETING_NOT_FOUND' });
           return;
@@ -204,17 +204,19 @@ function initSocket(io) {
       }
 
       try {
-        const doc = await Message.create({
-          roomId: currentRoomId,
-          senderId: socket.user.userId,
-          senderName: socket.user.displayName,
-          senderRole: socket.user.role,
-          body,
-          attachment,
+        const doc = await prisma.message.create({
+          data: {
+            roomId: currentRoomId,
+            senderId: socket.user.userId,
+            senderName: socket.user.displayName,
+            senderRole: socket.user.role,
+            body,
+            attachment: attachment ?? Prisma.JsonNull,
+          },
         });
 
         const message = {
-          id: doc._id,
+          id: doc.id,
           roomId: currentRoomId,
           body: doc.body,
           senderId: socket.user.userId,

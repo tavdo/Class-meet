@@ -6,21 +6,21 @@ ClassMeet has two moving pieces that need separate hosts:
 | --- | --- | --- |
 | **Frontend** (`frontend/`) | **Netlify** (static CDN) | Pure Vite/React build, no runtime. |
 | **Backend** (`backend/`) | **Render / Railway / Fly.io / DigitalOcean App Platform** | Needs Node, WebSockets (Socket.IO), and writable disk for uploads. |
-| **Database** | **MongoDB Atlas** (free M0 works) | Any MongoDB 6+. |
+| **Database** | **Postgres** (Render/Railway/Neon/Supabase free tier works) | Any PostgreSQL 14+. |
 | **Uploaded files** | Backend host's persistent disk (recommended) or S3/R2/Cloudinary | Serverless filesystems are ephemeral. |
 
-> Netlify alone cannot run Socket.IO signaling or keep a MongoDB connection
+> Netlify alone cannot run Socket.IO signaling or keep a Postgres connection
 > alive, so deploying only to Netlify will break rooms, chat, and uploads.
 
 ---
 
-## 1. Database — MongoDB Atlas
+## 1. Database — Postgres
 
-1. Create a free cluster at <https://cloud.mongodb.com>.
-2. **Network access → Add IP → 0.0.0.0/0** (or your backend host's IP range).
-3. **Database access → Add user**, copy the connection string:
-   `mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/meet?retryWrites=true&w=majority`.
-4. Keep it — you'll paste it as `MONGODB_URI` on the backend host.
+1. Provision a Postgres instance (e.g. Render → **New → PostgreSQL**, or Neon/Supabase free tier).
+2. Copy the connection string, e.g.
+   `postgresql://<user>:<pass>@<host>:5432/<database>`.
+3. Keep it — you'll paste it as `DATABASE_URL` on the backend host, then run
+   `npx prisma migrate deploy` against it to create the schema.
 
 ---
 
@@ -30,7 +30,7 @@ ClassMeet has two moving pieces that need separate hosts:
 2. <https://dashboard.render.com> → **New → Web Service** → connect the repo.
 3. Settings:
    - **Root Directory**: `backend`
-   - **Build Command**: `npm install`
+   - **Build Command**: `npm install && npx prisma migrate deploy`
    - **Start Command**: `npm start`
    - **Environment**: `Node`
 4. **Environment variables** (Render UI → Environment):
@@ -38,7 +38,7 @@ ClassMeet has two moving pieces that need separate hosts:
    ```
    NODE_ENV=production
    PORT=5000
-   MONGODB_URI=<your Atlas URI>
+   DATABASE_URL=<your Postgres connection string>
    JWT_SECRET=<long random string, ≥ 32 chars>
    JWT_EXPIRES_IN=7d
    CLIENT_ORIGIN=https://<your-netlify-subdomain>.netlify.app

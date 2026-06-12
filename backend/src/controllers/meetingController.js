@@ -1,8 +1,7 @@
 const fs = require('fs');
 const { body, param, query } = require('express-validator');
 const { customAlphabet } = require('nanoid');
-const Meeting = require('../models/Meeting');
-const Message = require('../models/Message');
+const { prisma } = require('../db');
 
 const nanoidRoom = customAlphabet('23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz', 12);
 
@@ -15,14 +14,16 @@ async function createMeeting(req, res, next) {
     let roomId = nanoidRoom();
     // Extremely unlikely collision loop
     for (let i = 0; i < 5; i += 1) {
-      const exists = await Meeting.exists({ roomId });
+      const exists = await prisma.meeting.findUnique({ where: { roomId }, select: { id: true } });
       if (!exists) break;
       roomId = nanoidRoom();
     }
-    const meeting = await Meeting.create({
-      roomId,
-      title: req.body.title?.trim() || 'Meeting',
-      createdBy: req.user.userId,
+    const meeting = await prisma.meeting.create({
+      data: {
+        roomId,
+        title: req.body.title?.trim() || 'Meeting',
+        createdById: req.user.userId,
+      },
     });
     return res.status(201).json({
       meeting: {
@@ -41,7 +42,10 @@ const getValidators = [param('roomId').trim().isLength({ min: 8, max: 32 })];
 async function getMeeting(req, res, next) {
   try {
     const { roomId } = req.params;
-    const meeting = await Meeting.findOne({ roomId }).populate('createdBy', 'displayName email');
+    const meeting = await prisma.meeting.findUnique({
+      where: { roomId },
+      include: { createdBy: { select: { displayName: true } } },
+    });
     if (!meeting) {
       return res.status(404).json({ error: 'Meeting not found' });
     }
@@ -71,16 +75,17 @@ async function listMessages(req, res, next) {
   try {
     const { roomId } = req.params;
     const limit = req.query.limit || 50;
-    const meeting = await Meeting.findOne({ roomId }).select('_id');
+    const meeting = await prisma.meeting.findUnique({ where: { roomId }, select: { id: true } });
     if (!meeting) {
       return res.status(404).json({ error: 'Meeting not found' });
     }
-    const messages = await Message.find({ roomId })
-      .sort({ createdAt: -1 })
-      .limit(limit)
-      .lean();
+    const messages = await prisma.message.findMany({
+      where: { roomId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
     const ordered = messages.reverse().map((m) => ({
-      id: m._id,
+      id: m.id,
       roomId: m.roomId,
       body: m.body,
       senderName: m.senderName,
@@ -103,7 +108,7 @@ async function uploadAttachment(req, res, next) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
     const { roomId } = req.params;
-    const meeting = await Meeting.findOne({ roomId }).select('_id');
+    const meeting = await prisma.meeting.findUnique({ where: { roomId }, select: { id: true } });
     if (!meeting) {
       fs.unlink(req.file.path, () => {});
       return res.status(404).json({ error: 'Meeting not found' });

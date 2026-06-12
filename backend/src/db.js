@@ -1,11 +1,9 @@
-const mongoose = require('mongoose');
-const config = require('./config');
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
 
 async function connectDb() {
-  mongoose.set('strictQuery', true);
-  await mongoose.connect(config.mongoUri, {
-    serverSelectionTimeoutMS: 5000,
-  });
+  await prisma.$connect();
 }
 
-module.exports = { connectDb };
+module.exports = { prisma, connectDb };

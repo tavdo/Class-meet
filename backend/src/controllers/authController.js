@@ -3,7 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { body } = require('express-validator');
-const User = require('../models/User');
+const { prisma } = require('../db');
 const config = require('../config');
 const { signToken } = require('../utils/token');
 const { sendMail } = require('../utils/mailer');
@@ -14,7 +14,7 @@ function hashResetToken(raw) {
 
 function publicUser(user) {
   return {
-    id: user._id,
+    id: user.id,
     email: user.email,
     displayName: user.displayName,
     role: user.role,
@@ -25,7 +25,7 @@ function publicUser(user) {
 
 function tokenPayload(user) {
   return {
-    sub: user._id.toString(),
+    sub: user.id,
     email: user.email,
     role: user.role,
     displayName: user.displayName,
@@ -42,12 +42,12 @@ const registerValidators = [
 async function register(req, res, next) {
   try {
     const { email, password, displayName, role } = req.body;
-    const existing = await User.findOne({ email });
+    const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       return res.status(409).json({ error: 'Email already registered' });
     }
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ email, passwordHash, displayName, role });
+    const user = await prisma.user.create({ data: { email, passwordHash, displayName, role } });
     const token = signToken(tokenPayload(user));
     return res.status(201).json({ token, user: publicUser(user) });
   } catch (e) {
@@ -63,7 +63,7 @@ const loginValidators = [
 async function login(req, res, next) {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -79,7 +79,7 @@ async function login(req, res, next) {
 }
 
 async function me(req, res) {
-  const user = await User.findById(req.user.userId);
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
   if (!user) return res.status(404).json({ error: 'User not found' });
   return res.json({ user: publicUser(user) });
 }
@@ -94,25 +94,26 @@ const updateProfileValidators = [
 
 async function updateProfile(req, res, next) {
   try {
-    const user = await User.findById(req.user.userId);
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const { displayName, email, bio, currentPassword, newPassword } = req.body;
+    const data = {};
 
     if (typeof displayName === 'string' && displayName.trim()) {
-      user.displayName = displayName.trim();
+      data.displayName = displayName.trim();
     }
 
     if (typeof bio === 'string') {
-      user.bio = bio.trim();
+      data.bio = bio.trim();
     }
 
     if (typeof email === 'string' && email !== user.email) {
-      const taken = await User.findOne({ email }).select('_id');
-      if (taken && taken._id.toString() !== user._id.toString()) {
+      const taken = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (taken && taken.id !== user.id) {
         return res.status(409).json({ error: 'Email already in use' });
       }
-      user.email = email;
+      data.email = email;
     }
 
     if (newPassword) {
@@ -123,13 +124,13 @@ async function updateProfile(req, res, next) {
       if (!ok) {
         return res.status(401).json({ error: 'Current password incorrect' });
       }
-      user.passwordHash = await bcrypt.hash(newPassword, 12);
+      data.passwordHash = await bcrypt.hash(newPassword, 12);
     }
 
-    await user.save();
+    const updated = await prisma.user.update({ where: { id: user.id }, data });
     // Re-issue a fresh JWT so the updated displayName/email flow through socket auth.
-    const token = signToken(tokenPayload(user));
-    return res.json({ token, user: publicUser(user) });
+    const token = signToken(tokenPayload(updated));
+    return res.json({ token, user: publicUser(updated) });
   } catch (e) {
     return next(e);
   }
@@ -140,7 +141,7 @@ async function uploadAvatar(req, res, next) {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    const user = await User.findById(req.user.userId);
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
     if (!user) {
       // Orphan upload — clean up.
       fs.unlink(req.file.path, () => {});
@@ -159,9 +160,8 @@ async function uploadAvatar(req, res, next) {
     }
 
     const url = `/uploads/avatars/${req.file.filename}`;
-    user.avatarUrl = url;
-    await user.save();
-    return res.json({ user: publicUser(user) });
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { avatarUrl: url } });
+    return res.json({ user: publicUser(updated) });
   } catch (e) {
     return next(e);
   }
@@ -169,7 +169,7 @@ async function uploadAvatar(req, res, next) {
 
 async function removeAvatar(req, res, next) {
   try {
-    const user = await User.findById(req.user.userId);
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.avatarUrl && user.avatarUrl.startsWith('/uploads/avatars/')) {
       const prevPath = path.join(
@@ -180,9 +180,8 @@ async function removeAvatar(req, res, next) {
       );
       fs.unlink(prevPath, () => {});
     }
-    user.avatarUrl = '';
-    await user.save();
-    return res.json({ user: publicUser(user) });
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { avatarUrl: '' } });
+    return res.json({ user: publicUser(updated) });
   } catch (e) {
     return next(e);
   }
@@ -195,7 +194,7 @@ const forgotPasswordValidators = [
 async function forgotPassword(req, res, next) {
   try {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    const user = await prisma.user.findUnique({ where: { email } });
 
     // Generic response regardless of whether the email exists — prevents
     // attackers from enumerating registered accounts.
@@ -208,11 +207,13 @@ async function forgotPassword(req, res, next) {
     if (!user) return res.json(genericResponse);
 
     const rawToken = crypto.randomBytes(32).toString('hex');
-    user.passwordResetTokenHash = hashResetToken(rawToken);
-    user.passwordResetExpires = new Date(
-      Date.now() + config.passwordResetTtlMinutes * 60_000
-    );
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: hashResetToken(rawToken),
+        passwordResetExpires: new Date(Date.now() + config.passwordResetTtlMinutes * 60_000),
+      },
+    });
 
     const resetUrl = `${config.appUrl}/reset-password/${rawToken}`;
     const ttlMin = config.passwordResetTtlMinutes;
@@ -271,10 +272,12 @@ async function resetPassword(req, res, next) {
   try {
     const { token, password } = req.body;
     const tokenHash = hashResetToken(token);
-    const user = await User.findOne({
-      passwordResetTokenHash: tokenHash,
-      passwordResetExpires: { $gt: new Date() },
-    }).select('+passwordResetTokenHash +passwordResetExpires');
+    const user = await prisma.user.findFirst({
+      where: {
+        passwordResetTokenHash: tokenHash,
+        passwordResetExpires: { gt: new Date() },
+      },
+    });
 
     if (!user) {
       return res
@@ -282,13 +285,17 @@ async function resetPassword(req, res, next) {
         .json({ error: 'This reset link is invalid or has expired.' });
     }
 
-    user.passwordHash = await bcrypt.hash(password, 12);
-    user.passwordResetTokenHash = null;
-    user.passwordResetExpires = null;
-    await user.save();
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await bcrypt.hash(password, 12),
+        passwordResetTokenHash: null,
+        passwordResetExpires: null,
+      },
+    });
 
-    const newToken = signToken(tokenPayload(user));
-    return res.json({ token: newToken, user: publicUser(user) });
+    const newToken = signToken(tokenPayload(updated));
+    return res.json({ token: newToken, user: publicUser(updated) });
   } catch (e) {
     return next(e);
   }

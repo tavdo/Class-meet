@@ -5,16 +5,16 @@ Production-oriented classroom meeting stack built **in phases**. Implemented so 
 ## Prerequisites
 
 - Node.js 18+
-- MongoDB 6+ (local or Atlas)
+- PostgreSQL 14+ (local or hosted)
 
 ## Quick start
 
-### 1. MongoDB
+### 1. PostgreSQL
 
 Local example:
 
 ```bash
-docker run --name meet-mongo -p 27017:27017 -d mongo:7
+docker run --name meet-postgres -e POSTGRES_USER=meet -e POSTGRES_PASSWORD=meet_dev_password -e POSTGRES_DB=meet -p 5432:5432 -d postgres:16
 ```
 
 ### 2. Backend
@@ -23,6 +23,7 @@ docker run --name meet-mongo -p 27017:27017 -d mongo:7
 cd backend
 copy .env.example .env   # Windows — use cp on macOS/Linux
 npm install
+npx prisma migrate deploy
 npm run dev
 ```
 

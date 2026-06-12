@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  teacher
+  student
+}
+
+model User {
+  id                     String    @id @default(cuid())
+  email                  String    @unique @db.VarChar(254)
+  passwordHash           String
+  displayName            String    @db.VarChar(80)
+  role                   Role
+  avatarUrl              String    @default("") @db.VarChar(512)
+  bio                    String    @default("") @db.VarChar(280)
+  passwordResetTokenHash String?
+  passwordResetExpires   DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  meetings Meeting[]
+  messages Message[]
+}
+
+model Meeting {
+  id          String   @id @default(cuid())
+  roomId      String   @unique @db.VarChar(32)
+  title       String   @default("Meeting") @db.VarChar(120)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  roomId     String
+  senderId   String
+  senderName String   @db.VarChar(80)
+  senderRole Role
+  body       String   @default("") @db.VarChar(4000)
+  attachment Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender User @relation(fields: [senderId], references: [id])
+
+  @@index([roomId, createdAt])
+}

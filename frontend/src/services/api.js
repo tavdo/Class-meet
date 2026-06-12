@@ -1,3 +1,5 @@
+import { useAuthStore } from '../store/authStore'
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
 
 async function parseJson(res) {
@@ -27,6 +29,9 @@ export async function apiFetch(path, { token, method = 'GET', body, headers = {}
   })
   const data = await parseJson(res)
   if (!res.ok) {
+    if (res.status === 401 && token) {
+      useAuthStore.getState().logout()
+    }
     const msg = data?.error || data?.message || `Request failed (${res.status})`
     const err = new Error(msg)
     err.status = res.status
@@ -60,6 +65,9 @@ export async function apiUpload(path, { token, file, fieldName = 'file', onProgr
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(data)
       } else {
+        if (xhr.status === 401 && token) {
+          useAuthStore.getState().logout()
+        }
         const err = new Error(
           data?.error || data?.message || `Upload failed (${xhr.status})`
         )
